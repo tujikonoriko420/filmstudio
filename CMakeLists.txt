@@ -14,6 +14,9 @@ if(NOT EXISTS "${PLUGIN_SDK_DIR}/plugin_sa")
   message(FATAL_ERROR "PLUGIN_SDK_DIR invalido: '${PLUGIN_SDK_DIR}'")
 endif()
 
+if(NOT DEFINED PLUGIN_LIB OR PLUGIN_LIB STREQUAL "")
+  set(PLUGIN_LIB "${PLUGIN_SDK_DIR}/output/lib/plugin.lib")
+endif()
 include(FetchContent)
 FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.5)
 FetchContent_Declare(minhook GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git GIT_TAG v1.3.3)
@@ -32,7 +35,7 @@ target_include_directories(FilmStudio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${imgu
   ${PLUGIN_SDK_DIR}/plugin_sa ${PLUGIN_SDK_DIR}/plugin_sa/game_sa ${PLUGIN_SDK_DIR}/shared
   ${PLUGIN_SDK_DIR}/shared/game ${PLUGIN_SDK_DIR}/shared/extensions)
 target_link_libraries(FilmStudio PRIVATE minhook
-  "${PLUGIN_SDK_DIR}/output/lib/plugin.lib" d3d9 dxguid shell32 winmm)
+  "${PLUGIN_LIB}" d3d9 dxguid shell32 winmm)
 if(MSVC)
   target_compile_options(FilmStudio PRIVATE /MT /utf-8 /wd4244 /wd4996 /wd4267)
 endif()
