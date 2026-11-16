@@ -5,20 +5,41 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
       - name: plugin-sdk
         shell: pwsh
         run: |
-          git clone --depth 1 https://github.com/DK22Pac/plugin-sdk.git $env:RUNNER_TEMP/psdk
-          Invoke-WebRequest https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-windows.zip -OutFile $env:RUNNER_TEMP/pm.zip
-          Expand-Archive $env:RUNNER_TEMP/pm.zip $env:RUNNER_TEMP/pm
-          echo "PLUGIN_SDK_DIR=$env:RUNNER_TEMP/psdk" >> $env:GITHUB_ENV
-          cd $env:RUNNER_TEMP/psdk
-          $env:PLUGIN_SDK_DIR="$env:RUNNER_TEMP/psdk"
-          & $env:RUNNER_TEMP/pm/premake5.exe vs2022
-          msbuild plugin_sa/plugin.vcxproj /p:Configuration=Release /p:Platform=Win32 /m /p:PlatformToolset=v143
+          $psdk = "$env:RUNNER_TEMP/psdk"
+          git clone --depth 1 https://github.com/DK22Pac/plugin-sdk.git $psdk
+          Write-Host "=== estrutura do plugin-sdk ==="
+          Get-ChildItem $psdk | Select-Object -ExpandProperty Name
+          Write-Host "=== premake / vcxproj / sln encontrados ==="
+          Get-ChildItem $psdk -Recurse -Include premake5.lua,*.vcxproj,*.sln,premake5.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          echo "PLUGIN_SDK_DIR=$psdk" >> $env:GITHUB_ENV
+
+          # 1) se ja existe projeto pronto, usa; 2) senao, gera com premake
+          $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
+          if (-not $proj) {
+            Invoke-WebRequest https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-windows.zip -OutFile $env:RUNNER_TEMP/pm.zip
+            Expand-Archive $env:RUNNER_TEMP/pm.zip $env:RUNNER_TEMP/pm
+            $lua = Get-ChildItem $psdk -Recurse -Filter premake5.lua | Select-Object -First 1
+            if (-not $lua) { throw "premake5.lua nao existe no plugin-sdk; veja a estrutura listada acima" }
+            Push-Location $lua.DirectoryName
+            $env:PLUGIN_SDK_DIR = $psdk
+            & $env:RUNNER_TEMP/pm/premake5.exe vs2022
+            Pop-Location
+            $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
+          }
+          if (-not $proj) { throw "plugin.vcxproj de plugin_sa nao encontrado" }
+          Write-Host "Compilando $($proj.FullName)"
+          msbuild $proj.FullName /p:Configuration=Release /p:Platform=Win32 /m /p:PlatformToolset=v143
+          $lib = Get-ChildItem $psdk -Recurse -Filter plugin.lib | Select-Object -First 1
+          if (-not $lib) { throw "plugin.lib nao foi gerada" }
+          Write-Host "LIB: $($lib.FullName)"
+          echo "PLUGIN_LIB=$($lib.FullName)" >> $env:GITHUB_ENV
       - name: FilmStudio
         run: |
-          cmake -S . -B build -A Win32
+          cmake -S . -B build -A Win32 -DPLUGIN_LIB="$env:PLUGIN_LIB"
           cmake --build build --config Release
       - uses: actions/upload-artifact@v4
         with: { name: FilmStudio-asi, path: build/Release/FilmStudio.asi }
