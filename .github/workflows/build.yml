@@ -20,15 +20,29 @@ jobs:
           # 1) se ja existe projeto pronto, usa; 2) senao, gera com premake
           $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
           if (-not $proj) {
-            Invoke-WebRequest https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-windows.zip -OutFile $env:RUNNER_TEMP/pm.zip
-            Expand-Archive $env:RUNNER_TEMP/pm.zip $env:RUNNER_TEMP/pm
             $lua = Get-ChildItem $psdk -Recurse -Filter premake5.lua | Select-Object -First 1
             if (-not $lua) { throw "premake5.lua nao existe no plugin-sdk; veja a estrutura listada acima" }
-            Push-Location $lua.DirectoryName
+            $exes = @()
+            $bundled = Get-ChildItem $psdk -Recurse -Filter premake5.exe | Select-Object -First 1
+            if ($bundled) { $exes += $bundled.FullName }
+            foreach ($v in @("5.0.0-beta7","5.0.0-beta6","5.0.0-beta4")) {
+              try {
+                $zip = "$env:RUNNER_TEMP/pm-$v.zip"
+                Invoke-WebRequest "https://github.com/premake/premake-core/releases/download/v$v/premake-$v-windows.zip" -OutFile $zip
+                Expand-Archive $zip "$env:RUNNER_TEMP/pm-$v" -Force
+                $exes += "$env:RUNNER_TEMP/pm-$v/premake5.exe"
+              } catch { Write-Host "premake $v indisponivel" }
+            }
             $env:PLUGIN_SDK_DIR = $psdk
-            & $env:RUNNER_TEMP/pm/premake5.exe vs2022
-            Pop-Location
-            $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
+            foreach ($exe in $exes) {
+              Write-Host "Tentando premake: $exe"
+              Push-Location $lua.DirectoryName
+              & $exe vs2022
+              $ok = ($LASTEXITCODE -eq 0)
+              Pop-Location
+              $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
+              if ($ok -and $proj) { break }
+            }
           }
           if (-not $proj) { throw "plugin.vcxproj de plugin_sa nao encontrado" }
           Write-Host "Compilando $($proj.FullName)"
