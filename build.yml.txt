@@ -1,0 +1,24 @@
+name: build
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: plugin-sdk
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/DK22Pac/plugin-sdk.git $env:RUNNER_TEMP/psdk
+          Invoke-WebRequest https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-windows.zip -OutFile $env:RUNNER_TEMP/pm.zip
+          Expand-Archive $env:RUNNER_TEMP/pm.zip $env:RUNNER_TEMP/pm
+          echo "PLUGIN_SDK_DIR=$env:RUNNER_TEMP/psdk" >> $env:GITHUB_ENV
+          cd $env:RUNNER_TEMP/psdk
+          $env:PLUGIN_SDK_DIR="$env:RUNNER_TEMP/psdk"
+          & $env:RUNNER_TEMP/pm/premake5.exe vs2022
+          msbuild plugin_sa/plugin.vcxproj /p:Configuration=Release /p:Platform=Win32 /m /p:PlatformToolset=v143
+      - name: FilmStudio
+        run: |
+          cmake -S . -B build -A Win32
+          cmake --build build --config Release
+      - uses: actions/upload-artifact@v4
+        with: { name: FilmStudio-asi, path: build/Release/FilmStudio.asi }
