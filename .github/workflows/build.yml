@@ -9,23 +9,34 @@ jobs:
       - name: plugin-sdk
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Continue"
           $psdk = "$env:RUNNER_TEMP/psdk"
           git clone --depth 1 https://github.com/DK22Pac/plugin-sdk.git $psdk
           Write-Host "=== estrutura do plugin-sdk ==="
           Get-ChildItem $psdk | Select-Object -ExpandProperty Name
-          Write-Host "=== premake / vcxproj / sln encontrados ==="
-          Get-ChildItem $psdk -Recurse -Include premake5.lua,*.vcxproj,*.sln,premake5.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/fakegta" | Out-Null
           echo "PLUGIN_SDK_DIR=$psdk" >> $env:GITHUB_ENV
+          echo "GTA_SA_DIR=$env:RUNNER_TEMP/fakegta" >> $env:GITHUB_ENV
+          $env:PLUGIN_SDK_DIR = $psdk
+          $env:GTA_SA_DIR = "$env:RUNNER_TEMP/fakegta"
 
-          # 1) se ja existe projeto pronto, usa; 2) senao, gera com premake
-          $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
+          function Find-Proj {
+            $all = Get-ChildItem $psdk -Recurse -Filter *.vcxproj -ErrorAction SilentlyContinue
+            $pick = $all | Where-Object { $_.Name -match '^plugin_?sa' } | Select-Object -First 1
+            if (-not $pick) { $pick = $all | Where-Object { $_.Directory.Name -match 'plugin_sa' -and $_.Name -match 'plugin' } | Select-Object -First 1 }
+            if (-not $pick) { $pick = $all | Where-Object { $_.Name -ieq 'plugin.vcxproj' } | Select-Object -First 1 }
+            return $pick
+          }
+
+          $proj = Find-Proj
           if (-not $proj) {
             $lua = Get-ChildItem $psdk -Recurse -Filter premake5.lua | Select-Object -First 1
-            if (-not $lua) { throw "premake5.lua nao existe no plugin-sdk; veja a estrutura listada acima" }
+            if (-not $lua) { throw "premake5.lua nao existe no plugin-sdk" }
+            $orig = Get-Content $lua.FullName -Raw
             $exes = @()
             $bundled = Get-ChildItem $psdk -Recurse -Filter premake5.exe | Select-Object -First 1
             if ($bundled) { $exes += $bundled.FullName }
-            foreach ($v in @("5.0.0-beta7","5.0.0-beta6","5.0.0-beta4")) {
+            foreach ($v in @("5.0.0-beta7","5.0.0-beta6","5.0.0-beta5","5.0.0-beta4")) {
               try {
                 $zip = "$env:RUNNER_TEMP/pm-$v.zip"
                 Invoke-WebRequest "https://github.com/premake/premake-core/releases/download/v$v/premake-$v-windows.zip" -OutFile $zip
@@ -33,25 +44,46 @@ jobs:
                 $exes += "$env:RUNNER_TEMP/pm-$v/premake5.exe"
               } catch { Write-Host "premake $v indisponivel" }
             }
-            $env:PLUGIN_SDK_DIR = $psdk
-            # compatibilidade: premake antigo nao tem multiprocessorcompile (usado na linha 202 do script)
-            $orig = Get-Content $lua.FullName -Raw
-            $shim = 'local noop = function() end for _, n in ipairs({"enablepch","externalanglebrackets","externalwarnings","usestandardpreprocessor","scanformoduledependencies","buildstlmodules","allmodulespublic","enableunitybuild"}) do if _G[n] == nil then _G[n] = noop end end if multiprocessorcompile == nil then function multiprocessorcompile(v) flags { "MultiProcessorCompile" } end end' + "`n"
-            if ($orig -notmatch 'function multiprocessorcompile') { Set-Content -Path $lua.FullName -Value ($shim + $orig) -NoNewline }
+            # comandos de premake novos que o premake antigo nao conhece: viram "no-op". A lista cresce sozinha a cada erro.
+            $missing = [System.Collections.Generic.List[string]]@(
+              "enablepch","useimportlib","externalanglebrackets","externalwarnings","usestandardpreprocessor",
+              "scanformoduledependencies","buildstlmodules","allmodulespublic","enableunitybuild","multiprocessorcompile")
             foreach ($exe in $exes) {
-              Write-Host "Tentando premake: $exe"
-              Push-Location $lua.DirectoryName
-              & $exe vs2022
-              $ok = ($LASTEXITCODE -eq 0)
-              Pop-Location
-              $proj = Get-ChildItem $psdk -Recurse -Filter plugin.vcxproj | Where-Object { $_.FullName -match "plugin_sa" } | Select-Object -First 1
-              if ($ok -and $proj) { break }
+              Write-Host "=== Tentando premake: $exe"
+              for ($try = 0; $try -lt 25; $try++) {
+                $names = (($missing | Sort-Object -Unique) | ForEach-Object { '"' + $_ + '"' }) -join ','
+                $shim = 'local noop = function() end for _, n in ipairs({' + $names + '}) do if _G[n] == nil then _G[n] = noop end end if _G["multiprocessorcompile"] == noop then function multiprocessorcompile(v) flags { "MultiProcessorCompile" } end end' + "`n"
+                Set-Content -Path $lua.FullName -Value ($shim + $orig) -NoNewline
+                Push-Location $lua.DirectoryName
+                $out = (& $exe vs2022 2>&1 | Out-String)
+                Pop-Location
+                Write-Host $out
+                $proj = Find-Proj
+                if ($proj) { break }   # o projeto do plugin ja existe: nao importa se os exemplos falharam
+                if ($out -match "global '([A-Za-z0-9_]+)'") {
+                  Write-Host ">>> comando desconhecido '$($Matches[1])': adicionando como no-op e tentando de novo"
+                  $missing.Add($Matches[1])
+                } else { break }
+              }
+              if ($proj) { break }
             }
           }
-          if (-not $proj) { throw "plugin.vcxproj de plugin_sa nao encontrado" }
-          Write-Host "Compilando $($proj.FullName)"
-          msbuild $proj.FullName /p:Configuration=Release /p:Platform=Win32 /m /p:PlatformToolset=v143
-          $lib = Get-ChildItem $psdk -Recurse -Filter plugin.lib | Select-Object -First 1
+          Write-Host "=== todos os .vcxproj encontrados ==="
+          Get-ChildItem $psdk -Recurse -Filter *.vcxproj -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
+          if (-not $proj) { throw "projeto do plugin-sdk (SA) nao encontrado; veja a lista acima" }
+          Write-Host "Projeto escolhido: $($proj.FullName)"
+
+          # escolhe Release|Win32 lendo as configuracoes do proprio projeto
+          $xml = Get-Content $proj.FullName -Raw
+          $cfgs = [regex]::Matches($xml, 'ProjectConfiguration Include="([^"|]+)\|([^"]+)"') | ForEach-Object { [pscustomobject]@{ C = $_.Groups[1].Value; P = $_.Groups[2].Value } }
+          Write-Host "Configuracoes: $(($cfgs | ForEach-Object { $_.C + '|' + $_.P }) -join ', ')"
+          $cfg = $cfgs | Where-Object { $_.C -match 'Release' -and $_.P -eq 'Win32' } | Select-Object -First 1
+          if (-not $cfg) { $cfg = $cfgs | Where-Object { $_.C -match 'Release' } | Select-Object -First 1 }
+          if (-not $cfg) { $cfg = [pscustomobject]@{ C = 'Release'; P = 'Win32' } }
+          Write-Host "Compilando com $($cfg.C)|$($cfg.P)"
+          msbuild $proj.FullName "/p:Configuration=$($cfg.C)" "/p:Platform=$($cfg.P)" /m /p:PlatformToolset=v143
+          if ($LASTEXITCODE -ne 0) { throw "msbuild do plugin-sdk falhou (veja o log acima)" }
+          $lib = Get-ChildItem $psdk -Recurse -Filter *.lib | Where-Object { $_.Name -match '^plugin' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $lib) { throw "plugin.lib nao foi gerada" }
           Write-Host "LIB: $($lib.FullName)"
           echo "PLUGIN_LIB=$($lib.FullName)" >> $env:GITHUB_ENV
