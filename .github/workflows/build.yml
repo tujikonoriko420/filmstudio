@@ -34,6 +34,10 @@ jobs:
               } catch { Write-Host "premake $v indisponivel" }
             }
             $env:PLUGIN_SDK_DIR = $psdk
+            # compatibilidade: premake antigo nao tem multiprocessorcompile (usado na linha 202 do script)
+            $orig = Get-Content $lua.FullName -Raw
+            $shim = 'if multiprocessorcompile == nil then function multiprocessorcompile(v) flags { "MultiProcessorCompile" } end end' + "`n"
+            if ($orig -notmatch 'function multiprocessorcompile') { Set-Content -Path $lua.FullName -Value ($shim + $orig) -NoNewline }
             foreach ($exe in $exes) {
               Write-Host "Tentando premake: $exe"
               Push-Location $lua.DirectoryName
