@@ -88,8 +88,17 @@ jobs:
           Write-Host "LIB: $($lib.FullName)"
           echo "PLUGIN_LIB=$($lib.FullName)" >> $env:GITHUB_ENV
       - name: FilmStudio
+        shell: pwsh
         run: |
           cmake -S . -B build -A Win32 -DPLUGIN_LIB="$env:PLUGIN_LIB"
-          cmake --build build --config Release
+          cmake --build build --config Release 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "=== PRIMEIROS ERROS (resumo) ==="
+            Select-String -Path build.log -Pattern 'error C|error LNK|fatal error' | Select-Object -First 15 | ForEach-Object { $_.Line }
+            Write-Host "=== injector.hpp linhas 745-770 ==="
+            $inj = Get-ChildItem $env:PLUGIN_SDK_DIR -Recurse -Filter injector.hpp | Select-Object -First 1
+            if ($inj) { $i = 0; Get-Content $inj.FullName | ForEach-Object { $i++; if ($i -ge 745 -and $i -le 770) { "{0}: {1}" -f $i, $_ } } }
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with: { name: FilmStudio-asi, path: build/Release/FilmStudio.asi }
