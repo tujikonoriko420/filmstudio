@@ -36,7 +36,7 @@ jobs:
             $env:PLUGIN_SDK_DIR = $psdk
             # compatibilidade: premake antigo nao tem multiprocessorcompile (usado na linha 202 do script)
             $orig = Get-Content $lua.FullName -Raw
-            $shim = 'if multiprocessorcompile == nil then function multiprocessorcompile(v) flags { "MultiProcessorCompile" } end end' + "`n"
+            $shim = 'local noop = function() end for _, n in ipairs({"enablepch","externalanglebrackets","externalwarnings","usestandardpreprocessor","scanformoduledependencies","buildstlmodules","allmodulespublic","enableunitybuild"}) do if _G[n] == nil then _G[n] = noop end end if multiprocessorcompile == nil then function multiprocessorcompile(v) flags { "MultiProcessorCompile" } end end' + "`n"
             if ($orig -notmatch 'function multiprocessorcompile') { Set-Content -Path $lua.FullName -Value ($shim + $orig) -NoNewline }
             foreach ($exe in $exes) {
               Write-Host "Tentando premake: $exe"
