@@ -40,5 +40,5 @@ target_include_directories(FilmStudio PRIVATE ${minhook_SOURCE_DIR}/include ${mi
 target_link_libraries(FilmStudio PRIVATE
   "${PLUGIN_LIB}" d3d9 dxguid shell32 winmm)
 if(MSVC)
-  target_compile_options(FilmStudio PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/std:c++17> /Zc:__cplusplus /MT /utf-8 /wd4244 /wd4996 /wd4267 /wd4005)
+  target_compile_options(FilmStudio PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/std:c++17> /Zc:__cplusplus "/FI${CMAKE_CURRENT_SOURCE_DIR}/fs_cxx17_shim.h" /MT /utf-8 /wd4244 /wd4996 /wd4267 /wd4005)
 endif()
