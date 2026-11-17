@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(FilmStudio CXX)
+project(FilmStudio C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -24,19 +24,21 @@ FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_
 FetchContent_MakeAvailable(imgui minhook stb)
 
 file(GLOB FS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-add_library(FilmStudio SHARED ${FS_SRC}
+file(GLOB MH_SRC ${minhook_SOURCE_DIR}/src/*.c ${minhook_SOURCE_DIR}/src/hde/hde32.c)
+add_library(FilmStudio SHARED ${FS_SRC} ${MH_SRC}
   ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp
   ${imgui_SOURCE_DIR}/backends/imgui_impl_dx9.cpp
   ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
-set_target_properties(FilmStudio PROPERTIES PREFIX "" SUFFIX ".asi")
+set_target_properties(FilmStudio PROPERTIES PREFIX "" SUFFIX ".asi" CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_compile_features(FilmStudio PRIVATE cxx_std_17)
 target_compile_definitions(FilmStudio PRIVATE GTASA PLUGIN_SGV_10US _CRT_SECURE_NO_WARNINGS
   NOMINMAX)
-target_include_directories(FilmStudio PRIVATE ${stb_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
+target_include_directories(FilmStudio PRIVATE ${minhook_SOURCE_DIR}/include ${minhook_SOURCE_DIR}/src ${minhook_SOURCE_DIR}/src/hde ${stb_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
   ${PLUGIN_SDK_DIR}/plugin_sa ${PLUGIN_SDK_DIR}/plugin_sa/game_sa ${PLUGIN_SDK_DIR}/shared
   ${PLUGIN_SDK_DIR}/shared/game ${PLUGIN_SDK_DIR}/shared/extensions)
-target_link_libraries(FilmStudio PRIVATE minhook
+target_link_libraries(FilmStudio PRIVATE
   "${PLUGIN_LIB}" d3d9 dxguid shell32 winmm)
 if(MSVC)
-  target_compile_options(FilmStudio PRIVATE /MT /utf-8 /wd4244 /wd4996 /wd4267)
+  target_compile_options(FilmStudio PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/std:c++17> /Zc:__cplusplus /MT /utf-8 /wd4244 /wd4996 /wd4267 /wd4005)
 endif()
