@@ -95,6 +95,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             Write-Host "=== PRIMEIROS ERROS (resumo) ==="
             Select-String -Path build.log -Pattern 'error C|error LNK|fatal error' | Select-Object -First 15 | ForEach-Object { $_.Line }
+            Write-Host "=== opcoes de compilacao do projeto ==="
+            Select-String -Path build/FilmStudio.vcxproj -Pattern 'LanguageStandard|AdditionalOptions|PreprocessorDefinitions' | Select-Object -First 8 | ForEach-Object { $_.Line.Trim() }
+            Write-Host "=== injector.hpp linhas 60-80 ==="
+            $inj0 = Get-ChildItem $env:PLUGIN_SDK_DIR -Recurse -Filter injector.hpp | Select-Object -First 1
+            if ($inj0) { $j = 0; Get-Content $inj0.FullName | ForEach-Object { $j++; if ($j -ge 60 -and $j -le 80) { "{0}: {1}" -f $j, $_ } } }
             Write-Host "=== injector.hpp linhas 745-770 ==="
             $inj = Get-ChildItem $env:PLUGIN_SDK_DIR -Recurse -Filter injector.hpp | Select-Object -First 1
             if ($inj) { $i = 0; Get-Content $inj.FullName | ForEach-Object { $i++; if ($i -ge 745 -and $i -le 770) { "{0}: {1}" -f $i, $_ } } }
