@@ -22,7 +22,7 @@ namespace NPCSelector {
         if (g_spawned.count(h) && !CPools::GetPed(h)) g_spawned.erase(h);
         return g_spawned.count(h) > 0;
     }
-    static bool ToScreen(const CVector& w, float& sx, float& sy) {
+    bool WorldToScreen(const CVector& w, float& sx, float& sy) {
         RwV3d in = { w.x, w.y, w.z }, out; float fw, fh;
         if (!CSprite::CalcScreenCoords(in, &out, &fw, &fh, true, true)) return false;
         ImVec2 ds = ImGui::GetIO().DisplaySize;
@@ -48,7 +48,7 @@ namespace NPCSelector {
             CPed* p = pool->GetAt(i);
             if (!p || p == pl) continue;
             CVector c = p->GetPosition(); c.z += 0.2f; // centro do corpo
-            float sx, sy; if (!ToScreen(c, sx, sy)) continue;
+            float sx, sy; if (!WorldToScreen(c, sx, sy)) continue;
             float d = (sx - mx) * (sx - mx) + (sy - my) * (sy - my);
             if (d < bd) { bd = d; best = p; }
         }
@@ -58,7 +58,7 @@ namespace NPCSelector {
         CPed* p = Selected(); if (!p) return;
         CVector c = p->GetPosition(); float sx, sy, tx, ty;
         CVector top = c; top.z += 1.0f; CVector bot = c; bot.z -= 1.0f;
-        if (!ToScreen(top, tx, ty) || !ToScreen(bot, sx, sy)) return;
+        if (!WorldToScreen(top, tx, ty) || !WorldToScreen(bot, sx, sy)) return;
         float h = fabsf(sy - ty), w = h * 0.45f, cx = (sx + tx) * 0.5f;
         ImGui::GetBackgroundDrawList()->AddRect(ImVec2(cx - w, ty), ImVec2(cx + w, sy),
             IM_COL32(255, 220, 0, 255), 4.0f, 0, 2.5f);

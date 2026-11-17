@@ -2,7 +2,9 @@
 #include <set>
 #include <vector>
 class CPed;
+#include "CVector.h"
 namespace NPCSelector {
+    bool WorldToScreen(const CVector& w, float& sx, float& sy);
     CPed* Selected();                    // nullptr se nada / invalido
     void Select(CPed* p);
     void Clear();

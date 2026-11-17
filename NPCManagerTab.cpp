@@ -2,6 +2,7 @@
 #include "NPCDatabase.h"
 #include "NPCSpawner.h"
 #include "NPCSelector.h"
+#include "BehaviorManager.h"
 #include "plugin.h"
 #include "CPools.h"
 #include "imgui.h"
@@ -32,7 +33,8 @@ namespace NPCManagerTab {
         ImGui::BeginDisabled(g_modelSel < 0);
         if (ImGui::Button("Spawn")) {
             int h = NPCSpawner::Spawn(g_modelSel);
-            if (h >= 0) { NPCSelector::MarkSpawned(h); NPCSelector::Select(CPools::GetPed(h)); }
+            if (h >= 0) { NPCSelector::MarkSpawned(h); NPCSelector::Select(CPools::GetPed(h));
+                BehaviorManager::SetMode(CPools::GetPed(h), NPCMode::Static); // NPC criado fica parado ate voce mudar }
         }
         ImGui::EndDisabled();
 

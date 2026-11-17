@@ -5,6 +5,7 @@
 #include "Log.h"
 #include "NPCDatabase.h"
 #include "UIManager.h"
+#include "BehaviorManager.h"
 
 class FilmStudio {
 public:
@@ -12,6 +13,7 @@ public:
         Settings::Load();
         FSLog("---- GTA SA Film Studio iniciado ----");
         UIManager::Init();
+        plugin::Events::processScriptsEvent += [] { BehaviorManager::Update(); };
         plugin::Events::initGameEvent += [] { NPCDatabase::Load(); }; // apos o jogo carregar modelos
         Hooks::Install();
     }

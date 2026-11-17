@@ -1,5 +1,11 @@
 #include "UIManager.h"
 #include "NPCManagerTab.h"
+#include "PositionTab.h"
+#include "AnimationTab.h"
+#include "NPCPositionController.h"
+#include "TexturesTab.h"
+#include "CameraTab.h"
+#include "CameraManager.h"
 #include "Hooks.h"
 #include "Settings.h"
 #include "NPCSelector.h"
@@ -41,7 +47,8 @@ namespace UIManager {
         Hooks::onFrame = Draw;
         // Enquanto o menu esta aberto, zera os controles do GTA (jogador e mouse-look) apos o update dos pads.
         plugin::Events::processScriptsEvent += [] {
-            if (!g_open) return;
+            CameraManager::Update(g_open, ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput);
+            if (!g_open && !CameraManager::Active()) return;
             CPad* pad = CPad::GetPad(0);
             if (pad) { memset(&pad->NewState, 0, sizeof pad->NewState);
                        memset(&pad->NewMouseControllerState, 0, sizeof pad->NewMouseControllerState); }
@@ -50,6 +57,7 @@ namespace UIManager {
 
     void Draw() {
         if (g_rebind == 0 && Pressed(Settings::menuKey)) SetOpen(!g_open);
+        if (g_rebind == 0 && Pressed(Settings::camKey)) CameraManager::Toggle();
         NPCSelector::DrawHighlight();
         if (!g_open) return;
         ImGuiIO& io = ImGui::GetIO();
@@ -58,18 +66,21 @@ namespace UIManager {
         if (ImGui::Begin("GTA SA Film Studio", nullptr)) {
             if (ImGui::BeginTabBar("tabs")) {
                 if (ImGui::BeginTabItem("NPC Manager")) { NPCManagerTab::Draw(); ImGui::EndTabItem(); }
-                if (ImGui::BeginTabItem("Animation"))   { Placeholder("Etapa 4"); ImGui::EndTabItem(); }
-                if (ImGui::BeginTabItem("Position"))    { Placeholder("Etapa 3"); ImGui::EndTabItem(); }
-                if (ImGui::BeginTabItem("Textures"))    { Placeholder("Etapa 5"); ImGui::EndTabItem(); }
-                if (ImGui::BeginTabItem("Camera"))      { Placeholder("Etapa 6"); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Animation"))   { AnimationTab::Draw(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Position"))    { PositionTab::Draw(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Textures"))    { TexturesTab::Draw(); ImGui::EndTabItem(); }
+                if (ImGui::BeginTabItem("Camera"))      { CameraTab::Draw(); ImGui::EndTabItem(); }
                 if (ImGui::BeginTabItem("Settings"))    { SettingsTab(); ImGui::EndTabItem(); }
                 ImGui::EndTabBar();
             }
         }
         bool overUI = io.WantCaptureMouse;
         ImGui::End();
-        // clique no mundo (fora das janelas) seleciona NPC
-        if (!overUI && ImGui::IsMouseClicked(0) && !ImGui::IsAnyItemHovered() && !io.WantCaptureMouse)
+        bool moveMode = PositionTab::MouseMoveActive();
+        NPCPositionController::UpdateMouseDrag(NPCSelector::Selected(), moveMode, io.MousePos.x, io.MousePos.y,
+            !overUI && ImGui::IsMouseDown(0), io.MouseWheel);
+        // clique no mundo (fora das janelas) seleciona NPC, exceto no modo de mover
+        if (!overUI && !moveMode && ImGui::IsMouseClicked(0))
             NPCSelector::PickAt(io.MousePos.x, io.MousePos.y);
     }
 }

@@ -31,3 +31,11 @@ namespace NPCDatabase {
     }
     const std::vector<NPCInfo>& All() { return g_list; }
 }
+namespace NPCDatabase {
+    const NPCInfo* Find(int id) {
+        static NPCInfo cj{ 0, "player", "player" };
+        if (id == 0) return &cj;
+        for (auto& n : g_list) if (n.id == id) return &n;
+        return nullptr;
+    }
+}

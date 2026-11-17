@@ -20,7 +20,8 @@ endif()
 include(FetchContent)
 FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.5)
 FetchContent_Declare(minhook GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git GIT_TAG v1.3.3)
-FetchContent_MakeAvailable(imgui minhook)
+FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
+FetchContent_MakeAvailable(imgui minhook stb)
 
 file(GLOB FS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 add_library(FilmStudio SHARED ${FS_SRC}
@@ -31,7 +32,7 @@ add_library(FilmStudio SHARED ${FS_SRC}
 set_target_properties(FilmStudio PROPERTIES PREFIX "" SUFFIX ".asi")
 target_compile_definitions(FilmStudio PRIVATE GTASA PLUGIN_SGV_10US _CRT_SECURE_NO_WARNINGS
   _USING_V110_SDK71_ NOMINMAX _NO_CRT_STDIO_INLINE)
-target_include_directories(FilmStudio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
+target_include_directories(FilmStudio PRIVATE ${stb_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
   ${PLUGIN_SDK_DIR}/plugin_sa ${PLUGIN_SDK_DIR}/plugin_sa/game_sa ${PLUGIN_SDK_DIR}/shared
   ${PLUGIN_SDK_DIR}/shared/game ${PLUGIN_SDK_DIR}/shared/extensions)
 target_link_libraries(FilmStudio PRIVATE minhook
