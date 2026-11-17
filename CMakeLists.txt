@@ -31,7 +31,7 @@ add_library(FilmStudio SHARED ${FS_SRC}
   ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
 set_target_properties(FilmStudio PROPERTIES PREFIX "" SUFFIX ".asi")
 target_compile_definitions(FilmStudio PRIVATE GTASA PLUGIN_SGV_10US _CRT_SECURE_NO_WARNINGS
-  _USING_V110_SDK71_ NOMINMAX _NO_CRT_STDIO_INLINE)
+  NOMINMAX)
 target_include_directories(FilmStudio PRIVATE ${stb_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends
   ${PLUGIN_SDK_DIR}/plugin_sa ${PLUGIN_SDK_DIR}/plugin_sa/game_sa ${PLUGIN_SDK_DIR}/shared
   ${PLUGIN_SDK_DIR}/shared/game ${PLUGIN_SDK_DIR}/shared/extensions)
